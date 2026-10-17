@@ -1,0 +1,239 @@
+
+@host = http://localhost:8080
+@userId = 900001
+@meetingId = 900001
+
+
+####################################################
+### Auth
+####################################################
+
+### בקשה חדשה: התחברות כ-admin, מחזירה JWT. להריץ ראשונה. הטוקן תקף לשעה.
+# @name login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### שורה חדשה: שומרת את הטוקן שחזר מ-login במשתנה token, ובו משתמשות כל הבקשות
+@token = {{login.response.body.*}}
+
+####################################################
+### כל הקטע הזה חדש: בדיקות ולידציה והרשאות
+####################################################
+
+### ולידציה: גוף לא תקין (שם קצר, סיסמה קצרה, אימייל שגוי) -> מצופה 400 עם פירוט השדות
+POST {{host}}/
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "id": 900002,
+  "username": "x",
+  "password": "123",
+  "email": "not-an-email"
+}
+
+###
+
+####################################################
+### Users
+####################################################
+
+### יצירת משתמש
+# הערה: אם המשתמש כבר קיים- התשובה תהיה 400 ולא דריסה.
+POST {{host}}/
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "id": {{userId}},
+  "username": "rina.demo",
+  "password": "Password123!",
+  "email": "rina.demo@example.com",
+  "phone": "0501234567",
+  "admin": false
+}
+
+###
+
+### הצגת כל המשתמשים
+GET {{host}}/all
+Authorization: Bearer {{token}}
+
+###
+
+### הצגת משתמש לפי מזהה
+GET {{host}}/users/{{userId}}
+Authorization: Bearer {{token}}
+
+###
+
+### עדכון משתמש
+PUT {{host}}/users/{{userId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "rina.demo",
+  "password": "Password123!",
+  "email": "rina.updated@example.com",
+  "phone": "0507654321",
+  "admin": false
+}
+
+### בקשה חדשה: התחברות כמשתמש הרגיל (rina.demo), בשביל /meetings/my. להריץ אחרי יצירת המשתמש.
+# @name loginUser
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "rina.demo",
+  "password": "Password123!"
+}
+
+### שורה חדשה: הטוקן של המשתמש הרגיל
+@userToken = {{loginUser.response.body.*}}
+
+### בקשה חדשה: משתמש רגיל מנסה לראות את כל המשתמשים -> מצופה 403 (רק admin)
+GET {{host}}/all
+Authorization: Bearer {{userToken}}
+
+### בקשה חדשה: משתמש רגיל מנסה לראות משתמש אחר (admin, id=1) -> מצופה 403
+GET {{host}}/users/1
+Authorization: Bearer {{userToken}}
+
+### בקשה חדשה: משתמש רגיל רואה את עצמו -> מצופה 200 (ובלי שדה password בתשובה)
+GET {{host}}/users/{{userId}}
+Authorization: Bearer {{userToken}}
+
+### בקשה חדשה: משתמש רגיל מנסה ליצור פגישה -> מצופה 403 (רק admin)
+POST {{host}}/meetings
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "id": 900002,
+  "subject": "Not allowed",
+  "startTime": "2026-11-02T09:00:00.000+00:00",
+  "endTime": "2026-11-02T10:00:00.000+00:00"
+}
+
+####################################################
+### Meetings
+####################################################
+
+### יצירת פגישה
+POST {{host}}/meetings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "id": {{meetingId}},
+  "subject": "Project kickoff",
+  "startTime": "2026-11-01T09:00:00.000+00:00",
+  "endTime": "2026-11-01T10:00:00.000+00:00",
+  "location": "Meeting room 1",
+  "description": "Initial project meeting"
+}
+
+###
+
+### הצגת כל הפגישות
+GET {{host}}/meetings
+Authorization: Bearer {{token}}
+
+###
+
+### הצגת פגישה לפי מזהה
+GET {{host}}/meetings/meetings/{{meetingId}}
+Authorization: Bearer {{token}}
+
+###
+
+### עדכון פגישה
+PUT {{host}}/meetings/meetings/{{meetingId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "subject": "Updated project kickoff",
+  "startTime": "2026-11-01T09:00:00.000+00:00",
+  "endTime": "2026-11-01T10:30:00.000+00:00",
+  "location": "Meeting room 2",
+  "description": "Updated meeting details"
+}
+
+###
+
+####################################################
+### Participants
+####################################################
+
+### יצירת משתתף; המשתמש והפגישה חייבים להיות קיימים
+# מבנה הבקשה השתנה: שולחים עכשיו meetingId ו-userId (במקום אובייקטים מקוננים meeting ו-user)
+# שורה חדשה: נותנת שם לבקשה כדי לקרוא את ה-id שחזר בתשובה
+# @name createParticipant
+POST {{host}}/participants
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "meetingId": {{meetingId}},
+  "userId": {{userId}},
+  "roleInMeeting": "ORGANIZER"
+}
+
+### שורה חדשה: שומרת את ה-id של המשתתף שנוצר (במקום 900001 הקבוע שהיה קודם)
+@participantId = {{createParticipant.response.body.$.id}}
+
+### הבקשה הועברה לכאן מקטע Meetings: הפגישה מופיעה רק אחרי שיש משתתף שמקשר בין rina לפגישה.
+### וגם שונה הטוקן ל-userToken, כי הבקשה מחזירה את הפגישות של המשתמש שבטוקן.
+GET {{host}}/meetings/my
+Authorization: Bearer {{userToken}}
+
+###
+
+### הצגת כל המשתתפים
+GET {{host}}/participants
+Authorization: Bearer {{token}}
+
+###
+
+### הצגת משתתף לפי מזהה
+GET {{host}}/participants/participants/{{participantId}}
+Authorization: Bearer {{token}}
+
+###
+
+### עדכון משתתף
+PUT {{host}}/participants/participants/{{participantId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "meetingId": {{meetingId}},
+  "userId": {{userId}},
+  "roleInMeeting": "ATTENDEE"
+}
+
+###
+
+### מחיקת משתתף — להריץ בסוף
+DELETE {{host}}/participants/participants/{{participantId}}
+Authorization: Bearer {{token}}
+
+###
+
+### מחיקת פגישה — להריץ אחרי מחיקת המשתתף
+DELETE {{host}}/meetings/meetings/{{meetingId}}
+Authorization: Bearer {{token}}
+
+###
+
+### מחיקת משתמש — להריץ אחרון
+DELETE {{host}}/users/{{userId}}
+Authorization: Bearer {{token}}

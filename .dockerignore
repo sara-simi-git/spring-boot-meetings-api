@@ -1,0 +1,9 @@
+# [שינוי] קובץ חדש: מונע שליחת קבצים מיותרים ל-Docker build context.
+# [שינוי] ה-Dockerfile ממילא מעתיק רק pom.xml ו-src, אבל זה מקצר ומנקה את שלב ה-build.
+target/
+data/
+.git/
+.idea/
+.vscode/
+*.iml
+HELP.md
